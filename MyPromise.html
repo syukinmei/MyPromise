@@ -10,71 +10,143 @@
 
 <body>
     <script type="text/javascript">
+        // 自己的Promise对象
+        function MyPromise(fn) {
+            this.PromiseState = 'pending';
+            this.PromiseResult = undefined;
 
-        class _Promise {
-            constructor(executor) {
-                this.state = 'pending';
-                this.value = undefined;
-                this.reason = undefined;
-                this.onResolvedCallbacks = [];
-                this.onRejectedCallbacks = [];
+            // 注册该 MyPromise对象resolve任务函数
+            this.thenCallback = undefined;
+            // 注册该 My Promise对象reject任务函数
+            this.catchCallback = undefined;
 
-                try {  // 如果executor执行报错，直接执行reject
-                    executor(this.resolve, this.reject);
-                } catch (err) {
-                    reject(err);
+            var _this = this;
+            var resolve = function (resolveValue) {
+                // console.log(this) // 该this指向Window
+                if (_this.PromiseState === 'pending') {
+                    // 状态和值变更
+                    _this.PromiseState = 'fulfilled';
+                    _this.PromiseResult = resolveValue;
+                    // 利用setTimeout模拟Promise对象的异步控制
+                    // 虽然resolve是在then函数前执行的
+                    // 但是该函数的回调一定是在Promise对象初始化完毕后执行的
+                    // 所以我们的回调执行时，thenCallback就已经初始化完毕了
+                    if (resolveValue instanceof MyPromise) {
+                        // 当传入的 resolveValue 的值的类型是 MyPromise对象本身时
+                        // 不需要使用异步控制，直接用它的then去处理下一步的流程
+                        resolveValue.then(function (res) {
+                            if (_this.thenCallback) {
+                                _this.thenCallback(res);
+                            }
+                        });
+                    } else {
+                        setTimeout(function () {
+                            if (_this.thenCallback) {
+                                _this.thenCallback(resolveValue);
+                            }
+                        });
+                    }
                 }
             }
-
-            //成功
-            resolv(value) {
-                // state改变,resolve调用就会失败
-                if (this.state === 'pending') {
-                    // resolve调用后，state转化为成功态
-                    this.state = 'fulfilled';
-                    // 储存成功的值
-                    this.value = value;
+            var reject = function (rejectValue) {
+                if (_this.PromiseState === 'pending') {
+                    _this.PromiseState = 'rejected';
+                    _this.PromiseResult = rejectValue;
+                    setTimeout(function () {
+                        // 当只有 catchCallback 的时候代表直接写的catch直接发流程即可
+                        if (_this.catchCallback) {
+                            _this.catchCallback(rejectValue);
+                        } else if (_this.thenCallback) {
+                            // 如果没有 catchCallback 但是存在 thenCallback 代表Promise对象直接使用了then
+                            // 所以此时应该先让then执行来进行本次函数的跳过，直接找到catch
+                            _this.thenCallback(rejectValue)
+                        } else {
+                            throw (`(in promise) / no catch found ${_this.PromiseResult}`)
+                        }
+                    })
                 }
-            };
-            //失败
-            reject(reason) {
-                // state改变,reject调用就会失败
-                if (this.state === 'pending') {
-                    // reject调用后，state转化为失败态
-                    this.state = 'rejected';
-                    // 储存失败的原因
-                    this.reason = reason;
-                }
-            };
-
-            //then方法
-            then(onFulfilled, onRejected) {
-                // 声明返回的promise2
-                let promise2 = new Promise((resolve, reject) => {
-                    if (this.state === 'fulfilled') {
-                        let x = onFulfilled(this.value);
-                        // resolvePromise函数，处理自己return的promise和默认的promise2的关系
-                        resolvePromise(promise2, x, resolve, reject);
-                    };
-                    if (this.state === 'rejected') {
-                        let x = onRejected(this.reason);
-                        resolvePromise(promise2, x, resolve, reject);
-                    };
-                    if (this.state === 'pending') {
-                        this.onResolvedCallbacks.push(() => {
-                            let x = onFulfilled(this.value);
-                            resolvePromise(promise2, x, resolve, reject);
-                        })
-                        this.onRejectedCallbacks.push(() => {
-                            let x = onRejected(this.reason);
-                            resolvePromise(promise2, x, resolve, reject);
-                        })
-                    }
-                });
-                // 返回promise，完成链式
-                return promise2;
+            }
+            if (fn) {
+                fn(resolve, reject);
+            } else {
+                throw ('Uncaught TypeError: Promise resolver undefined is not a functionat new Promise (<anonymous>)');
             }
         }
+
+        MyPromise.prototype.then = function (callback) {
+            var _this = this;
+            // 实现链式调用，需要return回去一个新的Promise对象
+            return new MyPromise(function (resolve, reject) {
+                // 我们通常在then函数执行的时候优先在函数内部注册回调函数任务
+                // 等待resolve执行的时候通过注册异步的任务来在该回调后捕获它
+                _this.thenCallback = function (value) {
+                    // 由于catch的链式调用比较复杂
+                    // 所以可能在catch执行的时候会触发 thenCallback
+                    // 所以在此需要判断当前Promise对象的状态是不是 rejected（已拒绝）
+                    if (_this.PromiseState === 'rejected') {
+                        // 如果是 rejected 触发的thenCallback，直接调用下一个对象的reject
+                        reject(value);
+                    } else {
+                        var res = callback(value); // 获取then方法的返回值
+                        // 判断。如果某一次then函数返回的是一个 rejected 状态的Promise对象
+                        // 此时我们需要在这里直接注册它的catch，并且在catch内部拿到对象的结果
+                        // 然后通过下一个对象的reject链式的通知最近的catch函数执行
+                        if (res instanceof MyPromise && res.PromiseState === 'rejected') {
+                            res.catch(function (errvalue) {
+                                reject(errvalue);
+                            })
+                        } else {
+                            resolve(res);
+                        }
+                    }
+                }
+            })
+        }
+        MyPromise.prototype.catch = function (callback) {
+            var _this = this;
+            return new MyPromise(function (resolve, reject) {
+                _this.catchCallback = function (value) {
+                    // console.log(value, '???')
+                    var res = callback(value)
+                    // 由于catch本次的对象为rejected状态，但是如果继续调用默认触发的还是then函数
+                    resolve(res);
+                }
+            })
+        }
+
+        MyPromise.resolve = function (value) {
+            return new MyPromise(function (resolve, reject) {
+                resolve(value);
+            })
+        }
+
+        MyPromise.reject = function (value) {
+            return new MyPromise(function (resolve, reject) {
+                reject(value);
+            })
+        }
+
+        // var P = new MyPromise(function (resolve) {
+        //     setTimeout(function () {
+        //         resolve('第一秒')
+        //     }, 1000)
+        // }).then(function (res) {
+        //     console.log(res);
+        //     return new MyPromise(function (resolve) {
+        //         setTimeout(function () {
+        //             resolve('第二秒')
+        //         }, 1000)
+        //     })
+        // }).then(function (res) {
+        //     console.log(res);
+        //     return new MyPromise(function (resolve) {
+        //         setTimeout(function () {
+        //             resolve('第三秒')
+        //         }, 1000)
+        //     })
+        // }).then(function (res) {
+        //     console.log(res);
+        // })
 
     </script>
 </body>
