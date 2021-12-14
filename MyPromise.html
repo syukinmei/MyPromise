@@ -126,9 +126,7 @@
         }
 
         MyPromise.all = function (PromiseArr) {
-            console.log(PromiseArr)
             var resArr = [];
-            var errValue = undefined;
             return new MyPromise(function (resolve, reject) {
                 // PromiseAll的特点是，必须等待PromiseArr数组中所有的Promise状态都为 fulfilled 之后才会触发then
                 PromiseArr.forEach((promiseItem, index) => {
@@ -140,6 +138,18 @@
                         if (success) {
                             resolve(resArr);
                         }
+                    }).catch(function (err) {
+                        reject(err);
+                    })
+                })
+            })
+        }
+
+        MyPromise.race = function (PromiseArr) {
+            return new MyPromise(function (resolve, reject) {
+                PromiseArr.forEach((promiseItem, index) => {
+                    promiseItem.then(function (res) {
+                        resolve(res);
                     }).catch(function (err) {
                         reject(err);
                     })
