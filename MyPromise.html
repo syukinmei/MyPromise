@@ -25,7 +25,7 @@
                 // console.log(this) // 该this指向Window
                 if (_this.PromiseState === 'pending') {
                     // 状态和值变更
-                    _this.PromiseState = 'fulfilled';
+                    _this.PromiseState = ' fulfilled';
                     _this.PromiseResult = resolveValue;
                     // 利用setTimeout模拟Promise对象的异步控制
                     // 虽然resolve是在then函数前执行的
@@ -106,7 +106,6 @@
             var _this = this;
             return new MyPromise(function (resolve, reject) {
                 _this.catchCallback = function (value) {
-                    // console.log(value, '???')
                     var res = callback(value)
                     // 由于catch本次的对象为rejected状态，但是如果继续调用默认触发的还是then函数
                     resolve(res);
@@ -123,6 +122,28 @@
         MyPromise.reject = function (value) {
             return new MyPromise(function (resolve, reject) {
                 reject(value);
+            })
+        }
+
+        MyPromise.all = function (PromiseArr) {
+            var resArr = [];
+            var errValue = undefined;
+            return new MyPromise(function (resolve, reject) {
+                // PromiseAll的特点是，必须等待PromiseArr数组中所有的Promise状态都为 fulfilled 之后才会触发then
+                PromiseArr.forEach((promiseItem, index) => {
+                    promiseItem.then(function (res) {
+                        resArr[index] = res;
+                        let success = PromiseArr.every(item => {
+                            // console.log(item)
+                            return item.PromiseState == 'fulfilled';
+                        })
+                        if (success) {
+                            resolve(resArr);
+                        }
+                    }).catch(function (err) {
+                        reject(err);
+                    })
+                })
             })
         }
 
@@ -148,6 +169,34 @@
         //     console.log(res);
         // })
 
+        var p1 = new MyPromise(function (resolve, reject) {
+            setTimeout(function () {
+                console.log(11)
+                resolve('第一个')
+            }, 1000)
+        })
+
+        var p2 = new MyPromise(function (resolve, reject) {
+            setTimeout(function () {
+                console.log(2)
+                resolve('第二个')
+            }, 2000)
+        })
+
+        var p3 = new MyPromise(function (resolve, reject) {
+            setTimeout(function () {
+                console.log(33)
+                resolve('第三个')
+            }, 3000)
+        })
+
+        // MyPromise.all([p1, p3, p2]).then(function (res) {
+        //     console.log(res);
+        // }).catch(function (err) {
+        //     console.log(err);
+        // })
+        console.log(MyPromise.all([p1, p3, p2]))
+        // console.log(MyPromise.all([p1, p2, p3]))
     </script>
 </body>
 
