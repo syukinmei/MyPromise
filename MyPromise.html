@@ -25,7 +25,7 @@
                 // console.log(this) // 该this指向Window
                 if (_this.PromiseState === 'pending') {
                     // 状态和值变更
-                    _this.PromiseState = ' fulfilled';
+                    _this.PromiseState = 'fulfilled';
                     _this.PromiseResult = resolveValue;
                     // 利用setTimeout模拟Promise对象的异步控制
                     // 虽然resolve是在then函数前执行的
@@ -126,6 +126,7 @@
         }
 
         MyPromise.all = function (PromiseArr) {
+            console.log(PromiseArr)
             var resArr = [];
             var errValue = undefined;
             return new MyPromise(function (resolve, reject) {
@@ -134,8 +135,7 @@
                     promiseItem.then(function (res) {
                         resArr[index] = res;
                         let success = PromiseArr.every(item => {
-                            // console.log(item)
-                            return item.PromiseState == 'fulfilled';
+                            return item.PromiseState === 'fulfilled';
                         })
                         if (success) {
                             resolve(resArr);
@@ -171,32 +171,29 @@
 
         var p1 = new MyPromise(function (resolve, reject) {
             setTimeout(function () {
-                console.log(11)
                 resolve('第一个')
             }, 1000)
         })
 
         var p2 = new MyPromise(function (resolve, reject) {
             setTimeout(function () {
-                console.log(2)
-                resolve('第二个')
-            }, 2000)
+                // resolve('第二个')
+                reject('失败第二个')
+            }, 300)
         })
 
         var p3 = new MyPromise(function (resolve, reject) {
             setTimeout(function () {
-                console.log(33)
                 resolve('第三个')
-            }, 3000)
+            }, 2000)
         })
 
-        // MyPromise.all([p1, p3, p2]).then(function (res) {
-        //     console.log(res);
-        // }).catch(function (err) {
-        //     console.log(err);
-        // })
-        console.log(MyPromise.all([p1, p3, p2]))
-        // console.log(MyPromise.all([p1, p2, p3]))
+
+        MyPromise.all([p2, p1, p3]).then(function (res) {
+            console.log(res);
+        }).catch(function (err) {
+            console.error(err);
+        })
     </script>
 </body>
 
